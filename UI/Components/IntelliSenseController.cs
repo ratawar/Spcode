@@ -87,7 +87,7 @@ namespace SPCode.UI.Components
             });
         }
 
-        private Regex methodExp = new Regex(@"(?<=\.)[A-Za-z_]\w*", RegexOptions.RightToLeft);
+        private readonly Regex methodExp = new Regex(@"(?<=\.)[A-Za-z_]\w*", RegexOptions.RightToLeft);
         private void EvaluateIntelliSense()
         {
             if (editor.SelectionLength > 0)
@@ -622,7 +622,7 @@ namespace SPCode.UI.Components
 
         private bool IsValidFunctionChar(char c)
         {
-            if (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_') return true;
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') return true;
             return false;
         }
     }

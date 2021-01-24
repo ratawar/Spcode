@@ -16,7 +16,7 @@ namespace SPCode.UI.Components
     public class AeonEditorHighlighting : IHighlightingDefinition
     {
 
-        private SMDefinition smDef;
+        private readonly SMDefinition smDef;
         public AeonEditorHighlighting() { }
 
         public AeonEditorHighlighting(SMDefinition smDef)
@@ -30,8 +30,10 @@ namespace SPCode.UI.Components
         {
             get
             {
-                var commentMarkerSet = new HighlightingRuleSet();
-                commentMarkerSet.Name = "CommentMarkerSet";
+                var commentMarkerSet = new HighlightingRuleSet
+                {
+                    Name = "CommentMarkerSet"
+                };
                 commentMarkerSet.Rules.Add(new HighlightingRule
                 {
                     Regex = RegexKeywordsHelper.GetRegexFromKeywords(new[]

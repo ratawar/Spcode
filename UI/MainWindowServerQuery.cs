@@ -21,19 +21,17 @@ namespace SPCode.UI
                 {
                     var serverInfo = server.GetInfo();
                     stringOutput.AppendLine(serverInfo.Name);
-                    using (var rcon = server.GetControl(c.RConPassword))
+                    using var rcon = server.GetControl(c.RConPassword);
+                    var cmds = ReplaceRconCMDVariables(c.RConCommands).Split('\n');
+                    foreach (var cmd in cmds)
                     {
-                        var cmds = ReplaceRconCMDVariables(c.RConCommands).Split('\n');
-                        foreach (var cmd in cmds)
+                        var t = Task.Run(() =>
                         {
-                            var t = Task.Run(() =>
-                            {
-                                var command = cmd.Trim('\r').Trim();
-                                if (!string.IsNullOrWhiteSpace(command))
-                                    stringOutput.AppendLine(rcon.SendCommand(command));
-                            });
-                            t.Wait();
-                        }
+                            var command = cmd.Trim('\r').Trim();
+                            if (!string.IsNullOrWhiteSpace(command))
+                                stringOutput.AppendLine(rcon.SendCommand(command));
+                        });
+                        t.Wait();
                     }
                 }
 

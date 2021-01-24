@@ -5,7 +5,7 @@ namespace Lysis
 {
     public class NodeRewriter : NodeVisitor
     {
-        private NodeGraph graph_;
+        private readonly NodeGraph graph_;
         private NodeBlock current_;
         private NodeList.iterator iterator_;
 
@@ -135,7 +135,7 @@ namespace Lysis
                     spop = SPOpcode.sub;
                     break;
                 default:
-                    throw new Exception(String.Format("unknown operator ({0})", op.ToString()));
+                    throw new Exception(string.Format("unknown operator ({0})", op.ToString()));
             }
 
             switch (spop)

@@ -9,15 +9,15 @@ namespace SPCode.UI.Components
     public class BracketHighlightRenderer : IBackgroundRenderer
     {
         BracketSearchResult result;
-        Brush backgroundBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x88, 0x88, 0x88));
-        TextView textView;
+        readonly Brush backgroundBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x88, 0x88, 0x88));
+        readonly TextView textView;
 
         public void SetHighlight(BracketSearchResult result)
         {
             if (this.result != result)
             {
                 this.result = result;
-                textView.InvalidateLayer(this.Layer);
+                textView.InvalidateLayer(Layer);
             }
         }
 
@@ -41,14 +41,15 @@ namespace SPCode.UI.Components
 
         public void Draw(TextView textView, DrawingContext drawingContext)
         {
-            if (this.result == null)
+            if (result == null)
                 return;
 
-            BackgroundGeometryBuilder builder = new BackgroundGeometryBuilder();
-
-            builder.CornerRadius = 1;
-            builder.AlignToWholePixels = true;
-            builder.BorderThickness = 0.0;
+            BackgroundGeometryBuilder builder = new BackgroundGeometryBuilder
+            {
+                CornerRadius = 1,
+                AlignToWholePixels = true,
+                BorderThickness = 0.0
+            };
 
             builder.AddSegment(textView, new TextSegment() { StartOffset = result.OpeningBracketOffset, Length = result.OpeningBracketLength });
             builder.CloseFigure();
@@ -83,17 +84,17 @@ namespace SPCode.UI.Components
         public BracketSearchResult(int openingBracketOffset, int openingBracketLength,
                                    int closingBracketOffset, int closingBracketLength)
         {
-            this.OpeningBracketOffset = openingBracketOffset;
-            this.OpeningBracketLength = openingBracketLength;
-            this.ClosingBracketOffset = closingBracketOffset;
-            this.ClosingBracketLength = closingBracketLength;
+            OpeningBracketOffset = openingBracketOffset;
+            OpeningBracketLength = openingBracketLength;
+            ClosingBracketOffset = closingBracketOffset;
+            ClosingBracketLength = closingBracketLength;
         }
     }
 
     public class SPBracketSearcher : IBracketSearcher
     {
-        string openingBrackets = "([{";
-        string closingBrackets = ")]}";
+        readonly string openingBrackets = "([{";
+        readonly string closingBrackets = ")]}";
 
         public BracketSearchResult SearchBracket(IDocument document, int offset)
         {

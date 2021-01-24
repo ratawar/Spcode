@@ -17,7 +17,7 @@ namespace SPCode.UI.Components
         double LineHeight = 0.0;
 
         private SmxFile file_;
-        private StringBuilder detail_buffer_ = new StringBuilder();
+        private readonly StringBuilder detail_buffer_ = new StringBuilder();
 
         public DASMElement()
         {
@@ -40,13 +40,9 @@ namespace SPCode.UI.Components
         {
             try
             {
-                using (var stream = fInfo.OpenRead())
-                {
-                    using (var reader = new BinaryReader(stream))
-                    {
-                        file_ = new SmxFile(reader);
-                    }
-                }
+                using var stream = fInfo.OpenRead();
+                using var reader = new BinaryReader(stream);
+                file_ = new SmxFile(reader);
             }
             catch (Exception e)
             {
@@ -136,7 +132,7 @@ namespace SPCode.UI.Components
 
         private void addDetailLine(string fmt, params object[] args)
         {
-            detail_buffer_.Append(String.Format(fmt, args) + "\r\n");
+            detail_buffer_.Append(string.Format(fmt, args) + "\r\n");
         }
 
         private void endDetailUpdate()
@@ -236,7 +232,7 @@ namespace SPCode.UI.Components
             endDetailUpdate();
         }
 
-        private void renderStringAnalysis(MemoryStream stream, BinaryReader reader, int size)
+        private void renderStringAnalysis(BinaryReader reader, int size)
         {
             startDetailUpdate();
 
@@ -453,7 +449,7 @@ namespace SPCode.UI.Components
             root.Items.Add(node);
             node.Tag = new NodeData(delegate ()
             {
-                renderStringAnalysis(data.Memory(), data.Reader(), (int)data.Header.DataSize);
+                renderStringAnalysis(data.Reader(), (int)data.Header.DataSize);
             }, null);
         }
 
@@ -463,7 +459,7 @@ namespace SPCode.UI.Components
             {
                 var index = i;
                 var pubfun = publics[i];
-                var node = new TreeViewItem() { Header = (i.ToString() + ": " + pubfun.Name) };
+                var node = new TreeViewItem() { Header = i.ToString() + ": " + pubfun.Name };
                 root.Items.Add(node);
                 node.Tag = new NodeData(delegate ()
                 {
@@ -481,7 +477,7 @@ namespace SPCode.UI.Components
             {
                 var index = i;
                 var pubvar = pubvars[i];
-                var node = new TreeViewItem() { Header = (i.ToString() + ": " + pubvar.Name) };
+                var node = new TreeViewItem() { Header = i.ToString() + ": " + pubvar.Name };
                 root.Items.Add(node);
                 node.Tag = new NodeData(delegate ()
                 {
@@ -499,8 +495,8 @@ namespace SPCode.UI.Components
             {
                 var tag = tags[i];
                 var text = tag.Id + ": " + tag.Name;
-                if ((tag.Flags & ~(TagFlags.Fixed)) != 0)
-                    text += " (" + (tag.Flags & ~(TagFlags.Fixed)) + ")";
+                if ((tag.Flags & ~TagFlags.Fixed) != 0)
+                    text += " (" + (tag.Flags & ~TagFlags.Fixed) + ")";
                 var node = new TreeViewItem() { Header = text };
                 root.Items.Add(node);
                 node.Tag = new NodeData(delegate ()
@@ -532,7 +528,7 @@ namespace SPCode.UI.Components
             {
                 var index = i;
                 var native = natives[i];
-                var node = new TreeViewItem() { Header = ("[" + i + "] " + native.Name) };
+                var node = new TreeViewItem() { Header = "[" + i + "] " + native.Name };
                 root.Items.Add(node);
                 node.Tag = new NodeData(delegate ()
                 {
@@ -773,20 +769,19 @@ namespace SPCode.UI.Components
         private void treeview__SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
             var node = treeview_.SelectedItem;
-            if (node is TreeViewItem)
+            if (node is TreeViewItem item)
             {
-                if (((TreeViewItem)node).Tag == null)
+                if (item.Tag == null)
                 {
                     return;
                 }
-                var data = (NodeData)((TreeViewItem)node).Tag;
+                var data = (NodeData)item.Tag;
                 if (data.callback == null)
                 {
                     return;
                 }
                 data.callback();
             }
-            return;
         }
 
         public delegate void DrawNodeFn();

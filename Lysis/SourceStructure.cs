@@ -17,7 +17,7 @@ namespace Lysis
 
     public abstract class ControlBlock
     {
-        NodeBlock source_;
+        readonly NodeBlock source_;
         public abstract ControlType type { get; }
 
         public ControlBlock(NodeBlock source)
@@ -41,8 +41,8 @@ namespace Lysis
     {
         public class Node
         {
-            private DNode expression_;
-            private LogicChain subChain_;
+            private readonly DNode expression_;
+            private readonly LogicChain subChain_;
 
             public Node(DNode expression)
             {
@@ -71,8 +71,8 @@ namespace Lysis
             }
         }
 
-        private LogicOperator op_;
-        private List<Node> nodes_ = new List<Node>();
+        private readonly LogicOperator op_;
+        private readonly List<Node> nodes_ = new List<Node>();
 
         public LogicChain(LogicOperator op)
         {
@@ -100,11 +100,11 @@ namespace Lysis
 
     public class IfBlock : ControlBlock
     {
-        ControlBlock trueArm_;
-        ControlBlock falseArm_;
-        ControlBlock join_;
-        LogicChain logic_;
-        bool invert_;
+        readonly ControlBlock trueArm_;
+        readonly ControlBlock falseArm_;
+        readonly ControlBlock join_;
+        readonly LogicChain logic_;
+        readonly bool invert_;
 
         public IfBlock(NodeBlock source, bool invert, ControlBlock trueArm, ControlBlock join)
           : base(source)
@@ -171,10 +171,10 @@ namespace Lysis
 
     public class WhileLoop : ControlBlock
     {
-        ControlBlock body_;
-        ControlBlock join_;
-        LogicChain logic_;
-        ControlType type_;
+        readonly ControlBlock body_;
+        readonly ControlBlock join_;
+        readonly LogicChain logic_;
+        readonly ControlType type_;
 
         public WhileLoop(ControlType type, NodeBlock source, ControlBlock body, ControlBlock join)
           : base(source)
@@ -215,8 +215,8 @@ namespace Lysis
     {
         public class Case
         {
-            private int value_;
-            private ControlBlock target_;
+            private readonly int value_;
+            private readonly ControlBlock target_;
 
             public Case(int value, ControlBlock target)
             {
@@ -234,9 +234,9 @@ namespace Lysis
             }
         }
 
-        ControlBlock defaultCase_;
-        List<Case> cases_;
-        ControlBlock join_;
+        readonly ControlBlock defaultCase_;
+        readonly List<Case> cases_;
+        readonly ControlBlock join_;
 
         public SwitchBlock(NodeBlock source, ControlBlock defaultCase, List<Case> cases, ControlBlock join)
           : base(source)
@@ -283,7 +283,7 @@ namespace Lysis
 
     public class StatementBlock : ControlBlock
     {
-        ControlBlock next_;
+        readonly ControlBlock next_;
 
         public StatementBlock(NodeBlock source, ControlBlock next)
             : base(source)
@@ -303,8 +303,8 @@ namespace Lysis
 
     public class SourceStructureBuilder
     {
-        private NodeGraph graph_;
-        private Stack<NodeBlock> joinStack_ = new Stack<NodeBlock>();
+        private readonly NodeGraph graph_;
+        private readonly Stack<NodeBlock> joinStack_ = new Stack<NodeBlock>();
 
         public SourceStructureBuilder(NodeGraph graph)
         {
@@ -355,10 +355,9 @@ namespace Lysis
         {
             NodeBlock trueTarget = BlockAnalysis.EffectiveTarget(jcc.trueTarget);
             bool targetIsTruthy = false;
-            if (trueTarget.lir.instructions[0] is LConstant)
+            if (trueTarget.lir.instructions[0] is LConstant constant)
             {
-                LConstant constant = (LConstant)trueTarget.lir.instructions[0];
-                targetIsTruthy = (constant.val == 1);
+                targetIsTruthy = constant.val == 1;
             }
 
             // jump on true -> 1 == ||
@@ -402,8 +401,7 @@ namespace Lysis
                     if (BlockAnalysis.EffectiveTarget(childJcc.trueTarget) != earlyExit)
                     {
                         // Parse a sub-expression.
-                        NodeBlock innerJoin;
-                        LogicChain rhs = buildLogicChain(exprBlock, earlyExit, out innerJoin);
+                        LogicChain rhs = buildLogicChain(exprBlock, earlyExit, out var innerJoin);
                         AssertInnerJoinValidity(innerJoin, earlyExit);
                         chain.append(rhs);
                         exprBlock = innerJoin;
@@ -460,8 +458,7 @@ namespace Lysis
                     earlyExit = BlockAnalysis.EffectiveTarget(condJcc.trueTarget);
 
                     // Build the right-hand side of the expression.
-                    NodeBlock innerJoin;
-                    LogicChain rhs = buildLogicChain(condJcc.falseTarget, earlyExit, out innerJoin);
+                    LogicChain rhs = buildLogicChain(condJcc.falseTarget, earlyExit, out var innerJoin);
                     AssertInnerJoinValidity(innerJoin, earlyExit);
 
                     // Build the full expression.
@@ -511,8 +508,7 @@ namespace Lysis
             // |n| has a target to a shared "success" block, setting a
             // phony variable. We decompose this giant mess into the intended
             // sequence of expressions.
-            NodeBlock join;
-            LogicChain chain = buildLogicChain(block, null, out join);
+            LogicChain chain = buildLogicChain(block, null, out var join);
 
             DJumpCondition finalJcc = (DJumpCondition)join.nodes.last;
             //Debug.Assert(finalJcc.spop == SPOpcode.jzer);
@@ -699,8 +695,7 @@ namespace Lysis
                 // Assert that the backedge is a straight jump.
                 //Debug.Assert(BlockAnalysis.GetSingleTarget(graph_[block.lir.backedge.id]) == block);
 
-                NodeBlock join, body, cond;
-                ControlType type = findLoopJoinAndBody(block, effectiveHeader, out join, out body, out cond);
+                ControlType type = findLoopJoinAndBody(block, effectiveHeader, out var join, out var body, out var cond);
                 ControlBlock joinArm = traverseBlock(join);
 
                 ControlBlock bodyArm = null;

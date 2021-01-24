@@ -52,8 +52,7 @@ namespace SPCode.Interop
                         var _AutoRCON = _AutoRCONStr != "0" && !string.IsNullOrWhiteSpace(_AutoRCONStr);
 
                         int _OptimizationLevel = 2, _VerboseLevel = 1;
-                        int subValue;
-                        if (int.TryParse(ReadAttributeStringSafe(ref node, "OptimizationLevel", "2"), out subValue))
+                        if (int.TryParse(ReadAttributeStringSafe(ref node, "OptimizationLevel", "2"), out var subValue))
                             _OptimizationLevel = subValue;
                         if (int.TryParse(ReadAttributeStringSafe(ref node, "VerboseLevel", "1"), out subValue))
                             _VerboseLevel = subValue;
@@ -70,9 +69,8 @@ namespace SPCode.Interop
                         bool _RConEngineTypeSource = !(_RConEngineSourceStr == "0" || string.IsNullOrWhiteSpace(_RConEngineSourceStr));
                         var _RConIP = ReadAttributeStringSafe(ref node, "RConIP", "127.0.0.1");
                         var _RConPortStr = ReadAttributeStringSafe(ref node, "RConPort", "27015");
-                        ushort _RConPort = 27015;
                         if (!ushort.TryParse(_RConPortStr, NumberStyles.Any, CultureInfo.InvariantCulture,
-                            out _RConPort)) _RConPort = 27015;
+                            out var _RConPort)) _RConPort = 27015;
                         var encryptedRConPassword = ReadAttributeStringSafe(ref node, "RConPassword");
                         var _RConPassword = ManagedAES.Decrypt(encryptedRConPassword);
                         var _RConCommands = ReadAttributeStringSafe(ref node, "RConCommands");

@@ -74,8 +74,8 @@ namespace SPCode.UI
                 MenuI_Undo.IsEnabled = ee.editor.CanUndo;
                 MenuI_Redo.IsEnabled = ee.editor.CanRedo;
                 for (var i = 2; i < menu.Items.Count; ++i)
-                    if (menu.Items[i] is MenuItem)
-                        ((MenuItem)menu.Items[i]).IsEnabled = true;
+                    if (menu.Items[i] is MenuItem item)
+                        item.IsEnabled = true;
             }
         }
 

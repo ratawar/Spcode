@@ -8,7 +8,7 @@ namespace SPCode.Interop
     public class PipeInteropServer : IDisposable
     {
         NamedPipeServerStream pipeServer;
-        MainWindow _window;
+        readonly MainWindow _window;
 
         public PipeInteropServer(MainWindow window)
         {
@@ -45,7 +45,7 @@ namespace SPCode.Interop
         {
             pipeServer.EndWaitForConnection(iar);
             byte[] byteBuffer = new byte[4];
-            pipeServer.Read(byteBuffer, 0, sizeof(Int32));
+            pipeServer.Read(byteBuffer, 0, sizeof(int));
             int length = BitConverter.ToInt32(byteBuffer, 0);
             byteBuffer = new byte[length];
             pipeServer.Read(byteBuffer, 0, length);

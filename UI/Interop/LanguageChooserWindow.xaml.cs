@@ -35,9 +35,8 @@ namespace SPCode.UI.Interop
             {
                 return;
             }
-            if (selectedObj is ComboBoxItem)
+            if (selectedObj is ComboBoxItem selectedItem)
             {
-                ComboBoxItem selectedItem = (ComboBoxItem)selectedObj;
                 SelectedID = (string)selectedItem.Tag;
             }
             Close();

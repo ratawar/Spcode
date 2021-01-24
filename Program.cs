@@ -42,10 +42,10 @@ namespace SPCode
 #if DEBUG     
             System.Diagnostics.PresentationTraceSources.DataBindingSource.Switch.Level =
                 System.Diagnostics.SourceLevels.Critical;
+
 #endif
 
-            bool mutexReserved;
-            using (new Mutex(true, "SPCodeGlobalMutex", out mutexReserved))
+            using (new Mutex(true, "SPCodeGlobalMutex", out var mutexReserved))
             {
                 if (mutexReserved)
                 {
@@ -231,7 +231,7 @@ namespace SPCode
             outString.AppendLine("64 bit OS: " + (Environment.Is64BitOperatingSystem ? "TRUE" : "FALSE"));
             outString.AppendLine("64 bit mode: " + (Environment.Is64BitProcess ? "TRUE" : "FALSE"));
             outString.AppendLine("Dir: " + Environment.CurrentDirectory);
-            outString.AppendLine("Working Set: " + Environment.WorkingSet / 1024 + " kb");
+            outString.AppendLine("Working Set: " + (Environment.WorkingSet / 1024) + " kb");
             outString.AppendLine("Installed UI Culture: " + CultureInfo.InstalledUICulture);
             outString.AppendLine("Current UI Culture: " + CultureInfo.CurrentUICulture);
             outString.AppendLine("Current Culture: " + CultureInfo.CurrentCulture);

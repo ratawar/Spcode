@@ -100,19 +100,19 @@ namespace SPCode.Utils.SPSyntaxTidy
                         var lastToken = GetTokenSave(i - 1, token, length);
                         var nextToken = GetTokenSave(i + 1, token, length);
                         bool lastTokenIsName = lastToken.Kind == SPTokenKind.Name;
-                        bool lastTokenValid = (lastTokenIsName || IsTokenNumber(lastToken));
+                        bool lastTokenValid = lastTokenIsName || IsTokenNumber(lastToken);
                         if (!lastTokenValid)
                         {
                             if (lastToken.Kind == SPTokenKind.Symbol)
                             {
-                                lastTokenValid = ((lastToken.Value == ")") || (lastToken.Value == "]"));
+                                lastTokenValid = (lastToken.Value == ")") || (lastToken.Value == "]");
                             }
                         }
                         if (lastTokenIsName)
                         {
                             lastTokenValid = lastToken.Value != "e" && lastToken.Value != "return";
                         }
-                        bool nextTokenValid = ((nextToken.Kind == SPTokenKind.Name) || IsTokenNumber(nextToken));
+                        bool nextTokenValid = (nextToken.Kind == SPTokenKind.Name) || IsTokenNumber(nextToken);
                         if (!nextTokenValid)
                         {
                             if (nextToken.Kind == SPTokenKind.Symbol)
@@ -217,15 +217,15 @@ namespace SPCode.Utils.SPSyntaxTidy
 
         public static bool IsPreWhiteSpaceName(string name)
         {
-            switch (name)
+            return name switch
             {
-                case "if": return true;
-                case "for": return true;
-                case "while": return true;
-                case "switch": return true;
-                case "case": return true;
-            }
-            return false;
+                "if" => true,
+                "for" => true,
+                "while" => true,
+                "switch" => true,
+                "case" => true,
+                _ => false,
+            };
         }
 
         public static bool IsTokenNumber(SPToken token)

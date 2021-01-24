@@ -138,7 +138,7 @@ namespace SPCode.UI
                                     var fileName = mc[i].Groups["name"].Value;
                                     if (!(fileName.EndsWith(".inc", StringComparison.InvariantCultureIgnoreCase) ||
                                           fileName.EndsWith(".sp", StringComparison.InvariantCultureIgnoreCase)))
-                                        fileName = fileName + ".inc";
+                                        fileName += ".inc";
                                     fileName = Path.Combine(
                                         fileInfo.DirectoryName ?? throw new NullReferenceException(), fileName);
                                     TryLoadSourceFile(fileName, false,

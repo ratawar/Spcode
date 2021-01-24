@@ -29,10 +29,10 @@ namespace Lysis
             }
         }
 
-        private SourcePawnFile file_;
+        private readonly SourcePawnFile file_;
         private uint pc_;
         private uint current_pc_;
-        private LIR lir_ = new LIR();
+        private readonly LIR lir_ = new LIR();
 
         private int readInt32()
         {
@@ -510,7 +510,7 @@ namespace Lysis
                 case SPOpcode.casetbl:
                     {
                         int ncases = readInt32();
-                        pc_ += (uint)ncases * 8 + 4;
+                        pc_ += ((uint)ncases * 8) + 4;
                         return new LDebugBreak();
                     }
 
@@ -542,9 +542,9 @@ namespace Lysis
 
         private class BlockBuilder
         {
-            private List<LInstruction> pending_ = new List<LInstruction>();
+            private readonly List<LInstruction> pending_ = new List<LInstruction>();
             private LBlock block_ = null;
-            private LIR lir_;
+            private readonly LIR lir_;
 
             private void transitionBlocks(LBlock next)
             {
@@ -668,9 +668,11 @@ namespace Lysis
             BlockAnalysis.ComputeDominatorTree(blocks);
             BlockAnalysis.FindLoops(blocks);
 
-            LGraph graph = new LGraph();
-            graph.blocks = blocks;
-            graph.entry = blocks[0];
+            LGraph graph = new LGraph
+            {
+                blocks = blocks,
+                entry = blocks[0]
+            };
             if (lir_.argDepth > 0)
                 graph.nargs = ((lir_.argDepth - 12) / 4) + 1;
             else

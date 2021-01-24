@@ -129,7 +129,7 @@ namespace Lysis
 
     public abstract class LInstructionReg : LInstruction
     {
-        private Register reg_;
+        private readonly Register reg_;
 
         public LInstructionReg(Register reg)
         {
@@ -144,7 +144,7 @@ namespace Lysis
 
     public abstract class LInstructionStack : LInstruction
     {
-        private int offs_;
+        private readonly int offs_;
 
         public LInstructionStack(int offset)
         {
@@ -159,8 +159,8 @@ namespace Lysis
 
     public abstract class LInstructionRegStack : LInstruction
     {
-        private Register reg_;
-        private int offs_;
+        private readonly Register reg_;
+        private readonly int offs_;
 
         public LInstructionRegStack(Register reg, int offset)
         {
@@ -181,7 +181,7 @@ namespace Lysis
 
     public abstract class LInstructionJump : LControlInstruction
     {
-        private uint target_offs_;
+        private readonly uint target_offs_;
 
         public LInstructionJump(uint target_offs, params LBlock[] targets)
             : base(targets)
@@ -269,7 +269,7 @@ namespace Lysis
 
     public class LLoad : LInstruction
     {
-        private int bytes_;
+        private readonly int bytes_;
 
         public LLoad(int bytes)
         {
@@ -294,7 +294,7 @@ namespace Lysis
 
     public class LConstant : LInstructionReg
     {
-        private int val_;
+        private readonly int val_;
 
         public LConstant(int val, Register reg) : base(reg)
         {
@@ -338,7 +338,7 @@ namespace Lysis
 
     public class LStore : LInstruction
     {
-        private int bytes_;
+        private readonly int bytes_;
 
         public LStore(int bytes)
         {
@@ -363,7 +363,7 @@ namespace Lysis
 
     public class LIndexAddress : LInstruction
     {
-        private int shift_;
+        private readonly int shift_;
 
         public LIndexAddress(int shift)
         {
@@ -461,7 +461,7 @@ namespace Lysis
 
     public class LPushConstant : LInstruction
     {
-        private int val_;
+        private readonly int val_;
 
         public LPushConstant(int val)
         {
@@ -504,7 +504,7 @@ namespace Lysis
 
     public class LStack : LInstruction
     {
-        private int val_;
+        private readonly int val_;
 
         public LStack(int val)
         {
@@ -592,7 +592,7 @@ namespace Lysis
 
     public class LJumpCondition : LInstructionJump
     {
-        private SPOpcode op_;
+        private readonly SPOpcode op_;
 
         public LJumpCondition(SPOpcode op, LBlock true_target, LBlock false_target, uint target_offs)
             : base(target_offs, true_target, false_target)
@@ -655,7 +655,7 @@ namespace Lysis
 
     public class LAddConstant : LInstruction
     {
-        private int amount_;
+        private readonly int amount_;
 
         public LAddConstant(int amount)
         {
@@ -680,7 +680,7 @@ namespace Lysis
 
     public class LMulConstant : LInstruction
     {
-        private int amount_;
+        private readonly int amount_;
 
         public LMulConstant(int amount)
         {
@@ -705,7 +705,7 @@ namespace Lysis
 
     public class LZeroGlobal : LInstruction
     {
-        private int address_;
+        private readonly int address_;
 
         public LZeroGlobal(int address)
         {
@@ -729,7 +729,7 @@ namespace Lysis
 
     public class LZeroLocal : LInstruction
     {
-        private int address_;
+        private readonly int address_;
 
         public LZeroLocal(int address)
         {
@@ -753,7 +753,7 @@ namespace Lysis
 
     public class LIncGlobal : LInstruction
     {
-        private int address_;
+        private readonly int address_;
 
         public LIncGlobal(int address)
         {
@@ -847,7 +847,7 @@ namespace Lysis
 
     public class LFill : LInstruction
     {
-        private int amount_;
+        private readonly int amount_;
 
         public LFill(int amount)
         {
@@ -872,7 +872,7 @@ namespace Lysis
 
     public class LBounds : LInstruction
     {
-        private int amount_;
+        private readonly int amount_;
 
         public LBounds(int amount)
         {
@@ -897,7 +897,7 @@ namespace Lysis
 
     public class LSysReq : LInstruction
     {
-        private Native native_;
+        private readonly Native native_;
 
         public LSysReq(Native native)
         {
@@ -975,7 +975,7 @@ namespace Lysis
 
     public class LPushLocal : LInstruction
     {
-        private int offset_;
+        private readonly int offset_;
 
         public LPushLocal(int offset)
         {
@@ -1014,8 +1014,8 @@ namespace Lysis
 
     public class LUnary : LInstruction
     {
-        private SPOpcode spop_;
-        private Register reg_;
+        private readonly SPOpcode spop_;
+        private readonly Register reg_;
 
         public LUnary(SPOpcode op, Register reg)
         {
@@ -1054,9 +1054,9 @@ namespace Lysis
 
     public class LBinary : LInstruction
     {
-        private SPOpcode spop_;
-        private Register lhs_;
-        private Register rhs_;
+        private readonly SPOpcode spop_;
+        private readonly Register lhs_;
+        private readonly Register rhs_;
 
         public LBinary(SPOpcode op, Register lhs, Register rhs)
         {
@@ -1145,7 +1145,7 @@ namespace Lysis
 
     public class LPushGlobal : LInstruction
     {
-        private int address_;
+        private readonly int address_;
 
         public LPushGlobal(int address)
         {
@@ -1168,7 +1168,7 @@ namespace Lysis
 
     public class LStoreGlobal : LInstructionReg
     {
-        private int address_;
+        private readonly int address_;
 
         public LStoreGlobal(int address, Register reg)
             : base(reg)
@@ -1192,7 +1192,7 @@ namespace Lysis
 
     public class LLoadGlobal : LInstructionReg
     {
-        private int address_;
+        private readonly int address_;
 
         public LLoadGlobal(int address, Register reg)
             : base(reg)
@@ -1216,7 +1216,7 @@ namespace Lysis
 
     public class LCall : LInstruction
     {
-        private int address_;
+        private readonly int address_;
 
         public LCall(int address)
         {
@@ -1239,7 +1239,7 @@ namespace Lysis
 
     public class LEqualConstant : LInstructionReg
     {
-        private int value_;
+        private readonly int value_;
 
         public LEqualConstant(Register reg, int value)
             : base(reg)
@@ -1263,7 +1263,7 @@ namespace Lysis
 
     public class LLoadIndex : LInstruction
     {
-        private int shift_;
+        private readonly int shift_;
 
         public LLoadIndex(int shift)
         {
@@ -1286,8 +1286,8 @@ namespace Lysis
 
     public class LStoreGlobalConstant : LInstruction
     {
-        private int address_;
-        private int value_;
+        private readonly int address_;
+        private readonly int value_;
 
         public LStoreGlobalConstant(int address, int value)
         {
@@ -1315,8 +1315,8 @@ namespace Lysis
 
     public class LStoreLocalConstant : LInstruction
     {
-        private int address_;
-        private int value_;
+        private readonly int address_;
+        private readonly int value_;
 
         public LStoreLocalConstant(int address, int value)
         {
@@ -1344,7 +1344,7 @@ namespace Lysis
 
     public class LHeap : LInstruction
     {
-        private int amount_;
+        private readonly int amount_;
 
         public LHeap(int amount)
         {
@@ -1367,7 +1367,7 @@ namespace Lysis
 
     public class LMemCopy : LInstruction
     {
-        private int bytes_;
+        private readonly int bytes_;
 
         public LMemCopy(int bytes)
         {
@@ -1390,7 +1390,7 @@ namespace Lysis
 
     public class SwitchCase
     {
-        private int value_;
+        private readonly int value_;
         public LBlock target;
 
         public SwitchCase(int value, LBlock target)
@@ -1408,7 +1408,7 @@ namespace Lysis
     public class LSwitch : LControlInstruction
     {
         private LBlock defaultCase_;
-        private List<SwitchCase> cases_;
+        private readonly List<SwitchCase> cases_;
 
         public LSwitch(LBlock defaultCase, List<SwitchCase> cases)
         {

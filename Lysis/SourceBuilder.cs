@@ -7,8 +7,8 @@ namespace Lysis
 {
     class SourceBuilder
     {
-        private PawnFile file_;
-        private StringBuilder out_;
+        private readonly PawnFile file_;
+        private readonly StringBuilder out_;
         private string indent_;
 
         public SourceBuilder(PawnFile file, StringBuilder tw)
@@ -332,7 +332,7 @@ namespace Lysis
             {
                 if (tu.type.type == CellType.Float)
                 {
-                    float f = file_.floatFromData(ia.address + i * 4);
+                    float f = file_.floatFromData(ia.address + (i * 4));
                     text += f;
                 }
                 else
@@ -598,7 +598,7 @@ namespace Lysis
                     break;
 
                 default:
-                    throw new Exception(String.Format("unknown op ({0})", node.type.ToString()));
+                    throw new Exception(string.Format("unknown op ({0})", node.type.ToString()));
             }
         }
 
@@ -835,7 +835,7 @@ namespace Lysis
 
             for (int i = 0; i < dims[level]; i++)
             {
-                int abase = address + i * 4;
+                int abase = address + (i * 4);
                 int inner = file_.int32FromData(abase);
                 int final = abase + inner;
                 if (!isArrayEmpty(final, dims, level + 1))
@@ -859,7 +859,7 @@ namespace Lysis
         {
             for (int i = 0; i < size; i++)
             {
-                int abase = address + i * 4;
+                int abase = address + (i * 4);
                 int inner = file_.int32FromData(abase);
                 int final = abase + inner;
                 string str = file_.stringFromData(final);
@@ -882,7 +882,7 @@ namespace Lysis
 
             for (int i = 0; i < var.dims[i].size; i++)
             {
-                int abase = address + i * 4;
+                int abase = address + (i * 4);
                 int inner = file_.int32FromData(abase);
                 int final = abase + inner;
                 outputLine("{");
@@ -901,7 +901,7 @@ namespace Lysis
             string text = "";
             for (int i = 0; i < size; i++)
             {
-                int cell = file_.int32FromData(address + i * 4);
+                int cell = file_.int32FromData(address + (i * 4));
                 text += cell;
                 if (i != size - 1)
                     text += ", ";
@@ -914,7 +914,7 @@ namespace Lysis
             int first = file_.int32FromData(address);
             for (int i = 1; i < size; i++)
             {
-                int cell = file_.int32FromData(address + i * 4);
+                int cell = file_.int32FromData(address + (i * 4));
                 if (first != cell)
                 {
                     dumpEntireArray(address, size);
@@ -938,7 +938,7 @@ namespace Lysis
                 {
                     break;
                 }
-                int abase = address + i * 4;
+                int abase = address + (i * 4);
                 int inner = file_.int32FromData(abase);
                 int final = abase + inner;
                 outputLine("{");

@@ -417,10 +417,8 @@ namespace SPCode.UI
                 process.StartInfo.RedirectStandardOutput = true;
                 process.Start();
                 process.WaitForExit();
-                using (var reader = process.StandardOutput)
-                {
-                    result = reader.ReadToEnd();
-                }
+                using var reader = process.StandardOutput;
+                result = reader.ReadToEnd();
             }
 
             File.Delete(batchFile);
