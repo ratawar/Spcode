@@ -32,6 +32,8 @@ namespace SPCode.UI.Components
     /// </summary>
     public partial class EditorElement : UserControl
     {
+        #region Variables
+
         private readonly BracketHighlightRenderer bracketHighlightRenderer;
         private readonly SPBracketSearcher bracketSearcher;
         private readonly ColorizeSelection colorizeSelection;
@@ -56,9 +58,14 @@ namespace SPCode.UI.Components
 
         private double LineHeight;
         public new LayoutDocument Parent;
-        private bool SelectionIsHighlited;
+        private bool SelectionIsHighlighted;
         private bool WantFoldingUpdate;
 
+        private Timer parseTimer;
+        private SMDefinition currentSmDef;
+        #endregion
+
+        #region Constructors and Initializers
         public EditorElement()
         {
             InitializeComponent();
@@ -140,13 +147,11 @@ namespace SPCode.UI.Components
 
             using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                using (var reader = FileReader.OpenStream(fs, Encoding.UTF8))
-                {
-                    var source = reader.ReadToEnd();
-                    source = source.Replace("\r\n", "\n").Replace("\r", "\n")
-                        .Replace("\n", "\r\n"); //normalize line endings
-                    editor.Text = source;
-                }
+                using var reader = FileReader.OpenStream(fs, Encoding.UTF8);
+                var source = reader.ReadToEnd();
+                source = source.Replace("\r\n", "\n").Replace("\r", "\n")
+                    .Replace("\n", "\r\n"); //normalize line endings
+                editor.Text = source;
             }
 
             _NeedsSave = false;
@@ -176,6 +181,13 @@ namespace SPCode.UI.Components
             ParseIncludes(sender, e);
         }
 
+        #endregion
+
+        #region Miscellaneous
+
+        /// <summary>
+        /// Gets the current file's full path.
+        /// </summary>
         public string FullFilePath
         {
             get => _FullFilePath;
@@ -188,6 +200,9 @@ namespace SPCode.UI.Components
             }
         }
 
+        /// <summary>
+        /// Adds an asterisk to a file's title if it's unsaved.
+        /// </summary>
         public bool NeedsSave
         {
             get => _NeedsSave;
@@ -206,8 +221,365 @@ namespace SPCode.UI.Components
             }
         }
 
-        #region Go To Definition (ctrl+click)
+        /// <summary>
+        /// Gets the full word the caret is standing on.
+        /// </summary>
+        /// <param name="e"></param>
+        /// <returns></returns>
+        private string GetWordAtMousePosition(MouseEventArgs e)
+        {
+            var mousePosition = editor.GetPositionFromPoint(e.GetPosition(this));
 
+            if (mousePosition == null)
+                return string.Empty;
+
+            var line = mousePosition.Value.Line;
+            var column = mousePosition.Value.Column;
+            var offset = editor.TextArea.Document.GetOffset(line, column);
+
+            if (offset >= editor.TextArea.Document.TextLength)
+                offset--;
+
+            var offsetStart = TextUtilities.GetNextCaretPosition(editor.TextArea.Document, offset,
+                LogicalDirection.Backward, CaretPositioningMode.WordBorder);
+            var offsetEnd = TextUtilities.GetNextCaretPosition(editor.TextArea.Document, offset,
+                LogicalDirection.Forward, CaretPositioningMode.WordBorder);
+
+            if (offsetEnd == -1 || offsetStart == -1)
+                return string.Empty;
+
+            var currentChar = editor.TextArea.Document.GetText(offset, 1);
+
+            if (string.IsNullOrWhiteSpace(currentChar))
+                return string.Empty;
+
+            return editor.TextArea.Document.GetText(offsetStart, offsetEnd - offsetStart);
+        }
+
+        /// <summary>
+        /// If specified in settings, starts the auto-save timer.
+        /// </summary>
+        public void StartAutoSaveTimer()
+        {
+            if (Program.OptionsObject.Editor_AutoSave)
+            {
+                if (AutoSaveTimer.Enabled) AutoSaveTimer.Stop();
+                AutoSaveTimer.Interval = 1000.0 * Program.OptionsObject.Editor_AutoSaveInterval;
+                AutoSaveTimer.Start();
+            }
+        }
+
+        /// <summary>
+        /// Used by the Go To Symbol Definition function to check if the provided definition (symbol) exists within the parsed includes.
+        /// </summary>
+        /// <param name="smDef"></param>
+        /// <param name="word"></param>
+        /// <param name="e"></param>
+        /// <param name="currentFile"></param>
+        /// <returns></returns>
+        private SMBaseDefinition MatchDefinition(SMDefinition smDef, string word, MouseButtonEventArgs e, bool currentFile = false)
+        {
+            if (smDef == null)
+                return null;
+
+            var mousePosition = editor.GetPositionFromPoint(e.GetPosition(this));
+
+            if (mousePosition == null)
+                return null;
+
+            // Get the caret's position
+            var line = mousePosition.Value.Line;
+            var column = mousePosition.Value.Column;
+            var offset = editor.TextArea.Document.GetOffset(line, column);
+
+            // In first place, instances a BaseDefinition fetching the supplied symbol from functions
+            var sm = (SMBaseDefinition)smDef.Functions.FirstOrDefault(i => i.Name == word);
+
+            // If passed currentFile, will check in the same file
+            if (currentFile)
+            {
+                sm ??= smDef.Functions.FirstOrDefault(func => func.Index <= offset && offset <= func.EndPos)
+                    ?.FuncVariables?.FirstOrDefault(i => i.Name.Equals(word));
+            }
+
+            // Checks and assigns now a variable to sm (if found) only if sm came null
+            sm ??= smDef.Variables.FirstOrDefault(i =>
+                i.Name.Equals(word));
+
+            // Same now with constants
+            sm ??= smDef.Constants.FirstOrDefault(i =>
+                i.Name.Equals(word));
+
+            // And so on
+            sm ??= smDef.Defines.FirstOrDefault(i => i.Name.Equals(word));
+
+            sm ??= smDef.Enums.FirstOrDefault(i => i.Name.Equals(word));
+
+            if (sm == null)
+            {
+                foreach (var smEnum in smDef.Enums)
+                {
+                    var str = smEnum.Entries.FirstOrDefault(
+                        i => i.Equals(word));
+
+                    if (str == null) continue;
+                    sm = smEnum;
+                    break;
+                }
+            }
+
+
+            //TODO: Match EnumStruct and MethodMaps Fields and Methods
+            sm ??= smDef.EnumStructs.FirstOrDefault(i =>
+                i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
+
+            sm ??= smDef.Methodmaps.FirstOrDefault(
+                i => i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
+
+            sm ??= smDef.Structs.FirstOrDefault(i => i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
+
+            sm ??= smDef.Typedefs.FirstOrDefault(i => i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
+
+            // Debug.Print($"Function {word} found with {sm}!");
+
+            return sm;
+        }
+
+        /// <summary>
+        /// Handles ctrl+g to open Go To Line popup.
+        /// </summary>
+        public void ToggleJumpGrid()
+        {
+            if (JumpGridIsOpen)
+            {
+                FadeJumpGridOut.Begin();
+                JumpGridIsOpen = false;
+            }
+            else
+            {
+                FadeJumpGridIn.Begin();
+                JumpGridIsOpen = true;
+                JumpNumber.Focus();
+                JumpNumber.SelectAll();
+            }
+        }
+
+        /// <summary>
+        /// Handles file save.
+        /// </summary>
+        /// <param name="force"></param>
+        public void Save(bool force = false)
+        {
+            if (_NeedsSave || force)
+            {
+                if (fileWatcher != null) fileWatcher.EnableRaisingEvents = false;
+                try
+                {
+                    using var fs = new FileStream(_FullFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                    editor.Save(fs);
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show(Program.MainWindow,
+                        Program.Translations.GetLanguage("DSaveError") + Environment.NewLine + "(" + e.Message + ")",
+                        Program.Translations.GetLanguage("SaveError"),
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                NeedsSave = false;
+                if (fileWatcher != null) fileWatcher.EnableRaisingEvents = true;
+            }
+        }
+
+        /// <summary>
+        /// Triggers when font size is changed.
+        /// </summary>
+        /// <param name="size"></param>
+        /// <param name="updateLineHeight"></param>
+        public void UpdateFontSize(double size, bool updateLineHeight = true)
+        {
+            if (size > 2 && size < 31)
+            {
+                editor.FontSize = size;
+                StatusLine_FontSize.Text = size.ToString("n0") + $" {Program.Translations.GetLanguage("PtAbb")}";
+            }
+
+            if (updateLineHeight) LineHeight = editor.TextArea.TextView.DefaultLineHeight;
+        }
+
+        /// <summary>
+        /// Handles toggle comment shortcut to comment lines.
+        /// </summary>
+        public void ToggleCommentOnLine()
+        {
+            var line = editor.Document.GetLineByOffset(editor.CaretOffset);
+            var lineText = editor.Document.GetText(line);
+            var leadingWhiteSpaces = 0;
+            foreach (var l in lineText)
+                if (char.IsWhiteSpace(l))
+                    leadingWhiteSpaces++;
+                else
+                    break;
+
+            lineText = lineText.Trim();
+            if (lineText.Length > 1)
+            {
+                if (lineText[0] == '/' && lineText[1] == '/')
+                    editor.Document.Remove(line.Offset + leadingWhiteSpaces, 2);
+                else
+                    editor.Document.Insert(line.Offset + leadingWhiteSpaces, "//");
+            }
+            else
+            {
+                editor.Document.Insert(line.Offset + leadingWhiteSpaces, "//");
+            }
+        }
+
+        /// <summary>
+        /// Handles ctrl+d for duplicating lines.
+        /// </summary>
+        /// <param name="down"></param>
+        private void DuplicateLine(bool down)
+        {
+            var line = editor.Document.GetLineByOffset(editor.CaretOffset);
+            var lineText = editor.Document.GetText(line);
+            editor.Document.Insert(line.Offset, lineText + Environment.NewLine);
+            if (down) editor.CaretOffset -= line.Length + 1;
+        }
+
+        /// <summary>
+        /// Handles ctrl+arrows to move lines around
+        /// </summary>
+        /// <param name="down"></param>
+        private void MoveLine(bool down)
+        {
+            var line = editor.Document.GetLineByOffset(editor.CaretOffset);
+            if (down)
+            {
+                if (line.NextLine == null)
+                {
+                    editor.Document.Insert(line.Offset, Environment.NewLine);
+                }
+                else
+                {
+                    var lineText = editor.Document.GetText(line.NextLine);
+                    editor.Document.Remove(line.NextLine.Offset, line.NextLine.TotalLength);
+                    editor.Document.Insert(line.Offset, lineText + Environment.NewLine);
+                }
+            }
+            else
+            {
+                if (line.PreviousLine == null)
+                {
+                    editor.Document.Insert(line.Offset + line.Length, Environment.NewLine);
+                }
+                else
+                {
+                    var insertOffset = line.PreviousLine.Offset;
+                    var relativeCaretOffset = editor.CaretOffset - line.Offset;
+                    var lineText = editor.Document.GetText(line);
+                    editor.Document.Remove(line.Offset, line.TotalLength);
+                    editor.Document.Insert(insertOffset, lineText + Environment.NewLine);
+                    editor.CaretOffset = insertOffset + relativeCaretOffset;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles file closing.
+        /// </summary>
+        /// <param name="ForcedToSave"></param>
+        /// <param name="CheckSavings"></param>
+        public async void Close(bool ForcedToSave = false, bool CheckSavings = true)
+        {
+            regularyTimer.Stop();
+            regularyTimer.Close();
+            if (fileWatcher != null)
+            {
+                fileWatcher.EnableRaisingEvents = false;
+                fileWatcher.Dispose();
+                fileWatcher = null;
+            }
+
+            if (CheckSavings)
+                if (_NeedsSave)
+                {
+                    if (ForcedToSave)
+                    {
+                        Save();
+                    }
+                    else
+                    {
+                        var title = $"{Program.Translations.GetLanguage("SavingFile")} '" + Parent.Title.Trim('*') +
+                                    "'";
+                        var Result = await Program.MainWindow.ShowMessageAsync(title, "",
+                            MessageDialogStyle.AffirmativeAndNegative, Program.MainWindow.MetroDialogOptions);
+                        if (Result == MessageDialogResult.Affirmative) Save();
+                    }
+                }
+
+            Program.MainWindow.EditorsReferences.Remove(this);
+            // var childs = Program.MainWindow.DockingPaneGroup.Children;
+            //  foreach (var c in childs) (c as LayoutDocumentPane)?.Children.Remove(Parent);
+
+            Parent = null; //to prevent a ring depency which disables the GC from work
+            Program.MainWindow.UpdateWindowTitle();
+        }
+
+        /// <summary>
+        /// Used by the timer that highlights words on selection to check if the selection is valid.
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns></returns>
+        private bool IsValidSearchSelectionString(string s)
+        {
+            var length = s.Length;
+            for (var i = 0; i < length; ++i)
+                if (!((s[i] >= 'a' && s[i] <= 'z') || (s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= '0' && s[i] <= '9') ||
+                      s[i] == '_'))
+                    return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Handles menu items translations.
+        /// </summary>
+        /// <param name="Initial"></param>
+        public void Language_Translate(bool Initial = false)
+        {
+            if (Program.Translations.IsDefault) return;
+            MenuC_Undo.Header = Program.Translations.GetLanguage("Undo");
+
+            MenuC_Redo.Header = Program.Translations.GetLanguage("Redo");
+
+            MenuC_Cut.Header = Program.Translations.GetLanguage("Cut");
+
+            MenuC_Copy.Header = Program.Translations.GetLanguage("Copy");
+
+            MenuC_Paste.Header = Program.Translations.GetLanguage("Paste");
+
+            MenuC_SelectAll.Header = Program.Translations.GetLanguage("SelectAll");
+            CompileBox.Content = Program.Translations.GetLanguage("Compile");
+            if (!Initial)
+            {
+                StatusLine_Coloumn.Text =
+                    $"{Program.Translations.GetLanguage("ColAbb")} {editor.TextArea.Caret.Column}";
+                StatusLine_Line.Text = $"{Program.Translations.GetLanguage("LnAbb")} {editor.TextArea.Caret.Line}";
+                StatusLine_FontSize.Text =
+                    editor.FontSize.ToString("n0") + $" {Program.Translations.GetLanguage("PtAbb")}";
+            }
+        }
+
+        #endregion
+
+        #region Form Events
+
+        /// <summary>
+        /// Handles Go To Symbol Definition (ctrl+click)
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void TextArea_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (!Keyboard.IsKeyDown(Key.LeftCtrl)) return;
@@ -252,120 +624,16 @@ namespace SPCode.UI.Components
                     newEditor.editor.TextArea.Caret.Offset = sm.Index;
                     newEditor.editor.TextArea.Caret.BringCaretToView();
                     newEditor.editor.TextArea.Selection = Selection.Create(newEditor.editor.TextArea, sm.Index, sm.Index + sm.Length);
+                    return;
                 }
             }
         }
 
-        #endregion
-
-        private SMBaseDefinition MatchDefinition(SMDefinition smDef, string word, MouseButtonEventArgs e, bool currentFile = false)
-        {
-            if (smDef == null)
-                return null;
-
-            var mousePosition = editor.GetPositionFromPoint(e.GetPosition(this));
-
-            if (mousePosition == null)
-                return null;
-
-            var line = mousePosition.Value.Line;
-            var column = mousePosition.Value.Column;
-            var offset = editor.TextArea.Document.GetOffset(line, column);
-
-            var sm = (SMBaseDefinition)smDef.Functions.FirstOrDefault(i => i.Name == word);
-
-            if (currentFile)
-            {
-                sm ??= smDef.Functions.FirstOrDefault(func => func.Index <= offset && offset <= func.EndPos)
-                    ?.FuncVariables?.FirstOrDefault(i => i.Name.Equals(word));
-            }
-
-            sm ??= smDef.Variables.FirstOrDefault(i =>
-                i.Name.Equals(word));
-
-            sm ??= smDef.Constants.FirstOrDefault(i =>
-                i.Name.Equals(word));
-
-            sm ??= smDef.Defines.FirstOrDefault(i => i.Name.Equals(word));
-
-            sm ??= smDef.Enums.FirstOrDefault(i => i.Name.Equals(word));
-
-            if (sm == null)
-            {
-                foreach (var smEnum in smDef.Enums)
-                {
-                    var str = smEnum.Entries.FirstOrDefault(
-                        i => i.Equals(word));
-
-                    if (str == null) continue;
-                    sm = smEnum;
-                    break;
-                }
-            }
-
-
-            //TODO: Match EnumStruct and MethodMaps Fields and Methods
-            sm ??= smDef.EnumStructs.FirstOrDefault(i =>
-                i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
-
-            sm ??= smDef.Methodmaps.FirstOrDefault(
-                i => i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
-
-            sm ??= smDef.Structs.FirstOrDefault(i => i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
-
-            sm ??= smDef.Typedefs.FirstOrDefault(i => i.Name.Equals(word, StringComparison.InvariantCultureIgnoreCase));
-
-            // Debug.Print($"Function {word} found with {sm}!");
-
-            return sm;
-        }
-
-        private string GetWordAtMousePosition(MouseEventArgs e)
-        {
-            var mousePosition = editor.GetPositionFromPoint(e.GetPosition(this));
-
-            if (mousePosition == null)
-                return string.Empty;
-
-            var line = mousePosition.Value.Line;
-            var column = mousePosition.Value.Column;
-            var offset = editor.TextArea.Document.GetOffset(line, column);
-
-            if (offset >= editor.TextArea.Document.TextLength)
-                offset--;
-
-            var offsetStart = TextUtilities.GetNextCaretPosition(editor.TextArea.Document, offset,
-                LogicalDirection.Backward, CaretPositioningMode.WordBorder);
-            var offsetEnd = TextUtilities.GetNextCaretPosition(editor.TextArea.Document, offset,
-                LogicalDirection.Forward, CaretPositioningMode.WordBorder);
-
-            if (offsetEnd == -1 || offsetStart == -1)
-                return string.Empty;
-
-            var currentChar = editor.TextArea.Document.GetText(offset, 1);
-
-            if (string.IsNullOrWhiteSpace(currentChar))
-                return string.Empty;
-
-            return editor.TextArea.Document.GetText(offsetStart, offsetEnd - offsetStart);
-        }
-
-        private void AutoSaveTimer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            if (NeedsSave)
-                Dispatcher.Invoke(() => { Save(); });
-        }
-
-        public void StartAutoSaveTimer()
-        {
-            if (Program.OptionsObject.Editor_AutoSave)
-            {
-                if (AutoSaveTimer.Enabled) AutoSaveTimer.Stop();
-                AutoSaveTimer.Interval = 1000.0 * Program.OptionsObject.Editor_AutoSaveInterval;
-                AutoSaveTimer.Start();
-            }
-        }
-
+        /// <summary>
+        /// Toggle go to line popup.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void EditorElement_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.G)
@@ -376,22 +644,22 @@ namespace SPCode.UI.Components
                 }
         }
 
-        public void ToggleJumpGrid()
+        /// <summary>
+        /// Auto-save timer callback.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void AutoSaveTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            if (JumpGridIsOpen)
-            {
-                FadeJumpGridOut.Begin();
-                JumpGridIsOpen = false;
-            }
-            else
-            {
-                FadeJumpGridIn.Begin();
-                JumpGridIsOpen = true;
-                JumpNumber.Focus();
-                JumpNumber.SelectAll();
-            }
+            if (NeedsSave)
+                Dispatcher.Invoke(() => { Save(); });
         }
 
+        /// <summary>
+        /// No idea wtf.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void JumpNumberKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -401,6 +669,11 @@ namespace SPCode.UI.Components
             }
         }
 
+        /// <summary>
+        /// Jumps to the line in go to line popup
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void JumpToNumber(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(JumpNumber.Text, out var num))
@@ -432,6 +705,11 @@ namespace SPCode.UI.Components
             editor.Focus();
         }
 
+        /// <summary>
+        /// File watcher callback
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void fileWatcher_Changed(object sender, FileSystemEventArgs e)
         {
             if (e == null) return;
@@ -480,6 +758,11 @@ namespace SPCode.UI.Components
             }
         }
 
+        /// <summary>
+        /// Highlight timer callback
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void regularyTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
             Dispatcher.Invoke(() =>
@@ -491,17 +774,17 @@ namespace SPCode.UI.Components
                     {
                         colorizeSelection.SelectionString = selectionString;
                         colorizeSelection.HighlightSelection = true;
-                        SelectionIsHighlited = true;
+                        SelectionIsHighlighted = true;
                         editor.TextArea.TextView.Redraw();
                     }
                     else
                     {
                         colorizeSelection.HighlightSelection = false;
                         colorizeSelection.SelectionString = string.Empty;
-                        if (SelectionIsHighlited)
+                        if (SelectionIsHighlighted)
                         {
                             editor.TextArea.TextView.Redraw();
-                            SelectionIsHighlited = false;
+                            SelectionIsHighlighted = false;
                         }
                     }
                 }
@@ -509,10 +792,10 @@ namespace SPCode.UI.Components
                 {
                     colorizeSelection.HighlightSelection = false;
                     colorizeSelection.SelectionString = string.Empty;
-                    if (SelectionIsHighlited)
+                    if (SelectionIsHighlighted)
                     {
                         editor.TextArea.TextView.Redraw();
-                        SelectionIsHighlited = false;
+                        SelectionIsHighlighted = false;
                     }
                 }
             });
@@ -530,154 +813,22 @@ namespace SPCode.UI.Components
             }
         }
 
-        public void Save(bool force = false)
-        {
-            if (_NeedsSave || force)
-            {
-                if (fileWatcher != null) fileWatcher.EnableRaisingEvents = false;
-                try
-                {
-                    using (var fs = new FileStream(_FullFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    {
-                        editor.Save(fs);
-                    }
-                }
-                catch (Exception e)
-                {
-                    MessageBox.Show(Program.MainWindow,
-                        Program.Translations.GetLanguage("DSaveError") + Environment.NewLine + "(" + e.Message + ")",
-                        Program.Translations.GetLanguage("SaveError"),
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                NeedsSave = false;
-                if (fileWatcher != null) fileWatcher.EnableRaisingEvents = true;
-            }
-        }
-
-        public void UpdateFontSize(double size, bool updateLineHeight = true)
-        {
-            if (size > 2 && size < 31)
-            {
-                editor.FontSize = size;
-                StatusLine_FontSize.Text = size.ToString("n0") + $" {Program.Translations.GetLanguage("PtAbb")}";
-            }
-
-            if (updateLineHeight) LineHeight = editor.TextArea.TextView.DefaultLineHeight;
-        }
-
-        public void ToggleCommentOnLine()
-        {
-            var line = editor.Document.GetLineByOffset(editor.CaretOffset);
-            var lineText = editor.Document.GetText(line);
-            var leadingWhiteSpaces = 0;
-            foreach (var l in lineText)
-                if (char.IsWhiteSpace(l))
-                    leadingWhiteSpaces++;
-                else
-                    break;
-
-            lineText = lineText.Trim();
-            if (lineText.Length > 1)
-            {
-                if (lineText[0] == '/' && lineText[1] == '/')
-                    editor.Document.Remove(line.Offset + leadingWhiteSpaces, 2);
-                else
-                    editor.Document.Insert(line.Offset + leadingWhiteSpaces, "//");
-            }
-            else
-            {
-                editor.Document.Insert(line.Offset + leadingWhiteSpaces, "//");
-            }
-        }
-
-        private void DuplicateLine(bool down)
-        {
-            var line = editor.Document.GetLineByOffset(editor.CaretOffset);
-            var lineText = editor.Document.GetText(line);
-            editor.Document.Insert(line.Offset, lineText + Environment.NewLine);
-            if (down) editor.CaretOffset -= line.Length + 1;
-        }
-
-        private void MoveLine(bool down)
-        {
-            var line = editor.Document.GetLineByOffset(editor.CaretOffset);
-            if (down)
-            {
-                if (line.NextLine == null)
-                {
-                    editor.Document.Insert(line.Offset, Environment.NewLine);
-                }
-                else
-                {
-                    var lineText = editor.Document.GetText(line.NextLine);
-                    editor.Document.Remove(line.NextLine.Offset, line.NextLine.TotalLength);
-                    editor.Document.Insert(line.Offset, lineText + Environment.NewLine);
-                }
-            }
-            else
-            {
-                if (line.PreviousLine == null)
-                {
-                    editor.Document.Insert(line.Offset + line.Length, Environment.NewLine);
-                }
-                else
-                {
-                    var insertOffset = line.PreviousLine.Offset;
-                    var relativeCaretOffset = editor.CaretOffset - line.Offset;
-                    var lineText = editor.Document.GetText(line);
-                    editor.Document.Remove(line.Offset, line.TotalLength);
-                    editor.Document.Insert(insertOffset, lineText + Environment.NewLine);
-                    editor.CaretOffset = insertOffset + relativeCaretOffset;
-                }
-            }
-        }
-
-        public async void Close(bool ForcedToSave = false, bool CheckSavings = true)
-        {
-            regularyTimer.Stop();
-            regularyTimer.Close();
-            if (fileWatcher != null)
-            {
-                fileWatcher.EnableRaisingEvents = false;
-                fileWatcher.Dispose();
-                fileWatcher = null;
-            }
-
-            if (CheckSavings)
-                if (_NeedsSave)
-                {
-                    if (ForcedToSave)
-                    {
-                        Save();
-                    }
-                    else
-                    {
-                        var title = $"{Program.Translations.GetLanguage("SavingFile")} '" + Parent.Title.Trim('*') +
-                                    "'";
-                        var Result = await Program.MainWindow.ShowMessageAsync(title, "",
-                            MessageDialogStyle.AffirmativeAndNegative, Program.MainWindow.MetroDialogOptions);
-                        if (Result == MessageDialogResult.Affirmative) Save();
-                    }
-                }
-
-            Program.MainWindow.EditorsReferences.Remove(this);
-            // var childs = Program.MainWindow.DockingPaneGroup.Children;
-            //  foreach (var c in childs) (c as LayoutDocumentPane)?.Children.Remove(Parent);
-
-            Parent = null; //to prevent a ring depency which disables the GC from work
-            Program.MainWindow.UpdateWindowTitle();
-        }
-
+        /// <summary>
+        /// Text change callback to trigger NeedsSave.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void editor_TextChanged(object sender, EventArgs e)
         {
             WantFoldingUpdate = true;
             NeedsSave = true;
         }
 
-        private Timer parseTimer;
-
+        /// <summary>
+        /// Fires on carent moving to evaluate intellisense and other things
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void Caret_PositionChanged(object sender, EventArgs e)
         {
             StatusLine_Coloumn.Text = $"{Program.Translations.GetLanguage("ColAbb")} {editor.TextArea.Caret.Column}";
@@ -703,8 +854,11 @@ namespace SPCode.UI.Components
             parseTimer.Elapsed += ParseIncludes;
         }
 
-        private SMDefinition currentSmDef;
-
+        /// <summary>
+        /// Fired on a new editor loaded to parse includes.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void ParseIncludes(object sender, EventArgs e)
         {
             Dispatcher.Invoke(() =>
@@ -774,6 +928,11 @@ namespace SPCode.UI.Components
             });
         }
 
+        /// <summary>
+        /// On text entered
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void TextArea_TextEntered(object sender, TextCompositionEventArgs e)
         {
             if (Program.OptionsObject.Editor_ReformatLineAfterSemicolon)
@@ -818,10 +977,10 @@ namespace SPCode.UI.Components
                         var lineText = editor.Document.GetText(line);
 
                         // Don't auto close brackets when the user is in a comment or in a string or a text is selected.
-                        if (editor.SelectionLength == 0 &&
-                            (lineText[0] == '/' && lineText[1] == '/') ||
+                        if ((editor.SelectionLength == 0 &&
+                            lineText[0] == '/' && lineText[1] == '/') ||
                             editor.Document.GetText(line.Offset, editor.CaretOffset - line.Offset).Count(c => c == '\"') % 2 == 1 ||
-                            line.LineNumber != 1 && editor.Document.GetText(line.Offset - 3, 1) == "\\")
+                            (line.LineNumber != 1 && editor.Document.GetText(line.Offset - 3, 1) == "\\"))
                             break;
 
                         // Getting the char ascii code with int cast and the string pos 0 (the char it self),
@@ -855,6 +1014,11 @@ namespace SPCode.UI.Components
             }
         }
 
+        /// <summary>
+        /// On text entering
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void TextArea_TextEntering(object sender, TextCompositionEventArgs e)
         {
             switch (e.Text)
@@ -896,11 +1060,21 @@ namespace SPCode.UI.Components
             }
         }
 
+        /// <summary>
+        /// On selection changed
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void TextArea_SelectionChanged(object sender, EventArgs e)
         {
             StatusLine_SelectionLength.Text = $"{Program.Translations.GetLanguage("LenAbb")} {editor.SelectionLength}";
         }
 
+        /// <summary>
+        /// Handles scrollwheel - on ctrl pressed, changes font size, otherwise moves to configured scroll speed.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void PrevMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (Keyboard.IsKeyDown(Key.LeftCtrl))
@@ -912,21 +1086,30 @@ namespace SPCode.UI.Components
             {
                 if (LineHeight == 0.0) LineHeight = editor.TextArea.TextView.DefaultLineHeight;
                 editor.ScrollToVerticalOffset(editor.VerticalOffset -
-                                              Math.Sign((double)e.Delta) * LineHeight *
-                                              Program.OptionsObject.Editor_ScrollLines);
-                //editor.ScrollToVerticalOffset(editor.VerticalOffset - ((double)e.Delta * editor.FontSize * Program.OptionsObject.Editor_ScrollSpeed));
+                                              (Math.Sign((double)e.Delta) * LineHeight *
+                                              Program.OptionsObject.Editor_ScrollLines));
                 e.Handled = true;
             }
 
             HideISAC();
         }
 
+        /// <summary>
+        /// On right-click pressed.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void editor_MouseDown(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             HideISAC();
         }
 
+        /// <summary>
+        /// Handles stuff on arrow keys pressed (any of them)
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void TextArea_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             e.Handled = ISAC_EvaluateKeyDownEvent(e.Key);
@@ -963,6 +1146,11 @@ namespace SPCode.UI.Components
                 }
         }
 
+        /// <summary>
+        /// Handles right-click menu.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void HandleContextMenuCommand(object sender, RoutedEventArgs e)
         {
             switch ((string)((MenuItem)sender).Tag)
@@ -1000,46 +1188,18 @@ namespace SPCode.UI.Components
             }
         }
 
+        /// <summary>
+        /// Handles right-click menu opening?
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void ContextMenu_Opening(object sender, RoutedEventArgs e)
         {
             ((MenuItem)((ContextMenu)sender).Items[0]).IsEnabled = editor.CanUndo;
             ((MenuItem)((ContextMenu)sender).Items[1]).IsEnabled = editor.CanRedo;
         }
 
-        private bool IsValidSearchSelectionString(string s)
-        {
-            var length = s.Length;
-            for (var i = 0; i < length; ++i)
-                if (!(s[i] >= 'a' && s[i] <= 'z' || s[i] >= 'A' && s[i] <= 'Z' || s[i] >= '0' && s[i] <= '9' ||
-                      s[i] == '_'))
-                    return false;
-            return true;
-        }
-
-        public void Language_Translate(bool Initial = false)
-        {
-            if (Program.Translations.IsDefault) return;
-            MenuC_Undo.Header = Program.Translations.GetLanguage("Undo");
-
-            MenuC_Redo.Header = Program.Translations.GetLanguage("Redo");
-
-            MenuC_Cut.Header = Program.Translations.GetLanguage("Cut");
-
-            MenuC_Copy.Header = Program.Translations.GetLanguage("Copy");
-
-            MenuC_Paste.Header = Program.Translations.GetLanguage("Paste");
-
-            MenuC_SelectAll.Header = Program.Translations.GetLanguage("SelectAll");
-            CompileBox.Content = Program.Translations.GetLanguage("Compile");
-            if (!Initial)
-            {
-                StatusLine_Coloumn.Text =
-                    $"{Program.Translations.GetLanguage("ColAbb")} {editor.TextArea.Caret.Column}";
-                StatusLine_Line.Text = $"{Program.Translations.GetLanguage("LnAbb")} {editor.TextArea.Caret.Line}";
-                StatusLine_FontSize.Text =
-                    editor.FontSize.ToString("n0") + $" {Program.Translations.GetLanguage("PtAbb")}";
-            }
-        }
+        #endregion
     }
 
     public class ColorizeSelection : DocumentColorizingTransformer
