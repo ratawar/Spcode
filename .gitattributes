@@ -17,8 +17,8 @@
 *.RTF	 diff=astextplain
 
 # Language override for sourcemod files
-*.sp linguist-detectable=false
-*.smx linguist-detectable=false
-*.inc linguist-detectable=false
-*.cpp linguist-detectable=false
-*.dll linguist-detectable=false
+*.sp -linguist-detectable
+*.smx -linguist-detectable
+*.inc -linguist-detectable
+*.cpp -linguist-detectable
+*.dll -linguist-detectable
