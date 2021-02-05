@@ -5,9 +5,9 @@ using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
-using SpcodeUpdater.Properties;
+using SPCodeUpdater.Properties;
 
-namespace SpcodeUpdater
+namespace SPCodeUpdater
 {
     public static class Program
     {
@@ -16,7 +16,7 @@ namespace SpcodeUpdater
         [STAThread]
         public static void Main()
         {
-            var processes = Process.GetProcessesByName("Spcode");
+            var processes = Process.GetProcessesByName("SPCode");
             foreach (var process in processes)
             {
                 try
