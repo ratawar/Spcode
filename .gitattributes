@@ -20,6 +20,4 @@
 *.sp -linguist-detectable
 *.smx -linguist-detectable
 *.inc -linguist-detectable
-*.cpp -linguist-detectable
-*.dll -linguist-detectable
 Deploy/ -linguist-vendored
