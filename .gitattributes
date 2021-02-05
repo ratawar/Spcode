@@ -22,5 +22,5 @@
 *.inc -linguist-detectable
 *.cpp -linguist-detectable
 *.dll -linguist-detectable
-*.nsi -linguist-detectable
+*.nsis -linguist-detectable
 *.ps1 -linguist-detectable
