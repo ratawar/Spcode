@@ -18,6 +18,7 @@
 
 # Language override for sourcemod files
 *.sp linguist-vendored=false
+*.smx linguist-detectable=false
 *.inc linguist-vendored=false
 *.cpp linguist-detectable=false
 *.dll linguist-detectable=false
