@@ -25,3 +25,4 @@
 *.nsi -linguist-detectable
 *.nsh -linguist-detectable
 *.ps1 -linguist-detectable
+Deploy/ -linguist-vendored
