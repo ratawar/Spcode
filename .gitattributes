@@ -22,7 +22,4 @@
 *.inc -linguist-detectable
 *.cpp -linguist-detectable
 *.dll -linguist-detectable
-*.nsi -linguist-detectable
-*.nsh -linguist-detectable
-*.ps1 -linguist-detectable
 Deploy/ -linguist-vendored
